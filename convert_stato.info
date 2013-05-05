@@ -1,0 +1,4 @@
+name = Convert to Stato XML
+description = Convert to Abako's Stato system XML format.
+core = 6.x
+dependencies[] = views_xml

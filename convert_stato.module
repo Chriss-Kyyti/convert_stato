@@ -1,0 +1,145 @@
+<?php
+/**
+ * @file
+ * Make needed conversion to views_datasource module's output XML
+ * to fit Abako's Stato data definition.
+ *
+ * Last modified: 29.11.2011 Mika Hatakka
+ */
+
+/**
+ * Implementation of hook_preprocess_views_views_xml_style_rawu().
+ */
+function convert_stato_preprocess_views_views_xml_style_raw($vars) {
+  $vars["xml"] = convert_stato_convert($vars["xml"]);
+}
+
+/**
+ * Convert the Drupal XML data to Stato definition.
+ *
+ * @param string $xml XML source data
+ * @return string converted XML data
+ */
+function convert_stato_convert($xml) {
+  $val = -1;
+  $cnt = 1;
+  do {
+    $val = strpos($xml, '<field_paivamaara_value>', $val + 1);
+    if ($val !== FALSE) {
+      $end = strpos($xml, '</field_paivamaara_value>', $val + 1);
+      $src = substr($xml, $val, $end - $val + 25);
+      $data = _convert_stato_extract_time_data($src, $end - $val);
+      if (!empty($data)) {
+        $ret =
+            '<alkamispaiva>' . $data[0] . '</alkamispaiva>' . "\n" .
+            '<alkamiskellonaika>' . $data[1] . '</alkamiskellonaika>' . "\n" .
+            '<paattymispaiva>' . $data[2] . '</paattymispaiva>' . "\n" .
+            '<paattymiskellonaika>' . $data[3] . '</paattymiskellonaika>' . "\n";
+      }
+      $xml = str_replace($src, $ret, $xml);
+    }
+  } while ($val !== FALSE);
+    // Category handling
+  $val = -1;
+  $cnt = 1;
+  do {
+     $val = strpos($xml, '<kategoria>', $val + 1);
+    if ($val !== FALSE) {
+      $end = strpos($xml, '</kategoria>', $val + 1);
+      $src = substr($xml, $val, $end - $val + 12);
+      $ret = _convert_stato_extract_kategory($src);
+      $xml = str_replace($src, $ret, $xml);
+    }
+  } while ($val !== FALSE);
+
+  $xml = str_replace(
+          array(
+            "<paikkakunta>, ",
+            ", </paikkakunta>",
+            '&euro;',
+            '&ndash;',
+            '&hellip;',
+          ),
+          array(
+            "<paikkakunta>",
+            "</paikkakunta>",
+            '&#8364;',
+            '&#45;',
+            '&#x2026;',
+          ),
+          $xml);
+  
+  return $xml;
+}
+
+/**
+ * Extract date and time data from source. If end date and/or
+ * time not set, use start data.
+ *
+ * @param string $src source data
+ * @param int $end date and time field end point in string
+ * @return array extracted date and time parts
+ */
+function _convert_stato_extract_time_data($src, $end) {
+  $data = substr($src, 24, $end - 24);
+  $parts = explode(' - ', $data);
+  $ret = _convert_stato_separate_date_time($parts[0]);
+  $ret2 = _convert_stato_separate_date_time($parts[1]);
+  if (empty($ret2[0])) {
+    $ret[] = $ret[0];
+  }
+  else {
+    $ret[] = $ret2[0];
+  }
+  if (empty($ret2[1])) {
+    $ret[] = $ret[1];
+  }
+  else {
+    $ret[] = $ret2[1];
+  }
+  return $ret;
+}
+
+/**
+ * Extract date and time from given data. If date or time not set
+ * return empty data.
+ *
+ * @param string $data source data
+ * @return array date and time data
+ */
+function _convert_stato_separate_date_time($data) {
+  if (empty($data)) {
+    return array('', '');
+  }
+  $parts = explode(', ', $data);
+  if (count($parts) === 1) {
+    if (strpos($data, ':') !== FALSE) {
+      $parts = array('', $data);
+    }
+    else {
+      $parts = array($data, '');
+    }
+  }
+  return $parts;
+}
+
+/**
+ * Create kategory information from department information.
+ *
+ * @param string $src source data
+ * @return array extracted date and time parts
+*/
+function _convert_stato_extract_kategory($src) {
+  $ret = '<kategoria>Kirjasto, ';
+  if(strpos($src, 'lastenosasto') !== FALSE) {
+    $ret .= 'Lapset, ';
+  }
+  if(strpos($src, 'musiikkiosasto') !== FALSE) {
+    $ret .= 'Musiikki';
+  }
+  if(substr($ret, -2) == ', ') {
+    $ret = substr($ret, 0, -2);
+  }
+  $ret .= '</kategoria>';
+  return $ret;
+}
